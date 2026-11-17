@@ -7,9 +7,9 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 # Configuration
 MEMORY_DIR = Path("memory")
-MAX_SHORT_TERM_TURNS = 10     # Sliding window: keep SystemMessage + last N turns in RAM
-MAX_MEMORY_FACTS = 20         # Compaction threshold: when facts exceed this limit...
-TARGET_COMPACT_FACTS = 10     # ...consolidate down to this number
+MAX_SHORT_TERM_TURNS = 20     # Sliding window: keep SystemMessage + last N turns in RAM
+MAX_MEMORY_FACTS = 30         # Compaction threshold: when facts exceed this limit...
+TARGET_COMPACT_FACTS = 15     # ...consolidate down to this number
 
 
 # =====================================================================
@@ -49,11 +49,11 @@ def compact_memory(llm, user_id: str, facts: list[str]) -> list[str]:
 Synthesize, merge, and compress these into the top {TARGET_COMPACT_FACTS} most essential permanent facts.
 
 Rules:
-1. ALWAYS RETAIN core identity: Name, primary role, key technical stack, long-term goals.
+1. ALWAYS RETAIN core identity: Name, chosen alias/persona, primary role, key technical stack, long-term goals.
 2. MERGE related or overlapping skills into single concise points.
 3. REMOVE outdated, redundant, or minor trivial details.
 4. Respond ONLY with a valid JSON array of strings containing at most {TARGET_COMPACT_FACTS} points.
-Example: ["Name is Praveen", "Builds AI agents with Python, Docker, and LangChain"]
+Example: ["Identifies as baki / boxxer", "Linux Android STB Developer with 7 years experience"]
 
 Current Facts:
 {json.dumps(facts, indent=2)}
@@ -88,14 +88,22 @@ def update_memory_from_session(llm, user_id: str, session_history: list) -> None
     existing_facts = load_user_facts(user_id)
 
     # Transcript of ONLY today's chat (Human & AI messages — NO SystemMessage)
+    # Step 1 (for m in session_history): Python grabs the message m.
+    # Step 2 (if not isinstance(m, SystemMessage)): Python tests if it is a SystemMessage, Step 2 (if not isinstance(m, SystemMessage)): Python tests if it is a SystemMessage
+    # Step 3 (The top expression): Only if Step 2 passed, Python formats the string: f"{'User'...}: {m.content}".
+    # Step 4 ("\n".join(...)): Once all messages are processed, Python joins all the generated lines with newlines.
     transcript = "\n".join(
-        f"{'User' if isinstance(m, HumanMessage) else 'AI'}: {m.content}"
-        for m in session_history
-        if not isinstance(m, SystemMessage)
-    )
-
+    f"{'User' if isinstance(m, HumanMessage) else 'AI'}: {m.content}" # ➡️ Step 3: Build the string
+    for m in session_history                                          # ➡️ Step 1: Pick an item from list
+    if not isinstance(m, SystemMessage)                               # ➡️ Step 2: Test condition (filter)
+)
     extraction_prompt = f"""You are an analytical memory extractor.
-Analyze today's conversation transcript and identify any NEW, permanent facts about the USER (e.g. name, preferences, role, projects, tools, habits).
+Analyze today's conversation transcript and identify any NEW, enduring facts about the USER.(e.g. preferences, role, projects, tools, habits).
+
+Capture:
+1. Chosen identity, alias, nickname, or persona (e.g. if the user calls themselves fictional or non fictonal character.).
+2. Professional background, skills, experience, tools, projects, and learning goals.
+3. Personal preferences, traits, habits, and self-descriptions.
 
 Already Known Facts (DO NOT duplicate these):
 {json.dumps(existing_facts, indent=2)}
@@ -104,7 +112,7 @@ Today's Conversation Transcript:
 {transcript}
 
 Rules:
-1. Extract ONLY concrete, enduring facts about the user.
+1. Capture self-identities, titles, aliases, or personas even if playful, fictional, or metaphorical (e.g. "Identifies as Gojo / Sorcerer by night, Developer by day") enduring facts about the user..
 2. Do NOT re-extract or rephrase already known facts.
 3. Do NOT record temporary questions or conversational chatter.
 4. Respond ONLY with a valid JSON array of strings, e.g. ["Uses Ubuntu Linux", "Prefers JSON storage"].
@@ -146,14 +154,16 @@ def build_system_message(user_id: str) -> SystemMessage:
     facts = load_user_facts(user_id)
 
     if facts:
+        print(f"🧠 Loaded {len(facts)} persistent fact(s).")
         facts_text = "\n".join(f"- {f}" for f in facts)
         memory_section = f"\nWhat you remember about this user across previous interactions:\n{facts_text}\n"
     else:
+        print("🧠 Starting with clean slate (no previous memory).")
         memory_section = "\nNo previous memory recorded yet."
 
     prompt = f"""You are a helpful, knowledgeable AI assistant. Be concise, friendly, and natural.
 {memory_section}
-Use this knowledge naturally when relevant. Do not force it unless it adds genuine value."""
+Use this knowledge naturally when relevant. If the user has an alias, nickname, persona, or title, warmly acknowledge and respect that identity in conversation! Do not force it unless it adds genuine value."""
 
     return SystemMessage(content=prompt)
 
@@ -179,12 +189,6 @@ def main():
     print(f"👤 User: {user_id}")
     print(f"📄 Memory File: {memory_file}")
 
-    existing_facts = load_user_facts(user_id)
-    if existing_facts:
-        print(f"🧠 Loaded {len(existing_facts)} persistent fact(s).")
-    else:
-        print("🧠 Starting with clean slate (no previous memory).")
-
     # In-memory ephemeral session (lives ONLY in RAM)
     system_msg = build_system_message(user_id)
     messages = [system_msg]
@@ -207,14 +211,19 @@ def main():
             # Sliding window: keep SystemMessage (messages[0]) + last N conversation turns
             active_context = [messages[0]] + messages[-MAX_SHORT_TERM_TURNS:]
 
-            # Invoke Gemini
-            response = llm.invoke(active_context)
+            # Stream response token-by-token in real time
+            print("\nAI: ", end="", flush=True)
+            full_response = ""
 
-            # Print AI response
-            print(f"\nAI: {response.text}")
+            for chunk in llm.stream(active_context):
+                token = chunk.text
+                print(token, end="", flush=True)
+                full_response += token
 
-            # Append AI reply to in-RAM memory
-            messages.append(AIMessage(content=response.text))
+            print()  # Newline after stream finishes
+
+            # Append full AI reply to in-RAM memory
+            messages.append(AIMessage(content=full_response))
 
         except KeyboardInterrupt:
             print("\nSession interrupted.")
