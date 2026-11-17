@@ -1,0 +1,18 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: voice-agent:latest
+    container_name: voice_ai_agent
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    # Useful if your agent runs an interactive shell or CLI:
+    stdin_open: true
+    tty: true
+    # Mount workspace during local development (changes reflect without rebuild):
+    # volumes:
+    #   - .:/app
+
