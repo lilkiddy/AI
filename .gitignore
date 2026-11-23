@@ -1,0 +1,14 @@
+# Virtual environment
+.venv
+.venv/
+venv/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment files with sensitive credentials
+.env
+.env.local

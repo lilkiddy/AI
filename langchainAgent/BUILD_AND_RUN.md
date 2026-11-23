@@ -1,184 +1,126 @@
 # Build and Run Guide
 
-This document provides complete, step-by-step instructions to build, run, and deploy the WisprXscaler application across any environment.
+Complete, step-by-step instructions to set up, execute, and test both the **CLI Memory Agent** and the **Voice Input Web Gateway**.
 
 ---
 
-## 📋 Prerequisites
+## 📋 1. Prerequisites
 
-Before proceeding, ensure you have the following installed on your machine:
-- **Docker**: Engine version 20.10+ (Check with `docker --version`)
-- **Docker Compose**: Plugin v2+ (Check with `docker compose version`)
-- *(Optional for local dev)* **Python**: 3.12+ (Check with `python3 --version`)
-
----
-
-## ⚙️ Initial Configuration
-
-Create your local `.env` configuration file from the template:
-
-```bash
-cd wisprXscaler
-cp .env.example .env
-```
-
-Open `.env` in an editor and insert your relevant API keys (e.g. OpenAI, Anthropic, Gemini, OpenRouter):
-```ini
-OPENAI_API_KEY=your_key_here
-GEMINI_API_KEY=your_key_here
-ENVIRONMENT=development
-```
-
-> [!IMPORTANT]
-> The `.env` file is excluded in `.dockerignore` so your secrets are never baked into container images.
+Ensure the following tools are available on your system:
+- **Python**: Version 3.12+ (Verify with `python3 --version`)
+- **Docker** *(Optional for containerized run)*: Version 20.10+ (Verify with `docker --version`)
+- **Web Browser**: Chrome, Edge, Firefox, or Safari (for microphone audio capture)
 
 ---
 
-## 🐳 Method 1: Run with Docker Compose (Recommended)
+## ⚙️ 2. Environment Setup
 
-Docker Compose simplifies build and run lifecycle management.
-
-### Build and Start
+### Step A: Clone or Navigate to Project
 ```bash
-docker compose up --build
+cd /home/prvn/ai/experiments/AI/langchainAgent
 ```
 
-### Run Interactively (for Agents with Terminal Prompt / Chat CLI)
-If your agent expects command-line user interaction:
+### Step B: Create & Activate Virtual Environment
 ```bash
-docker compose run --rm agent
-```
-
-### Run in the Background (Detached Mode)
-```bash
-docker compose up -d
-```
-
-### View Live Logs
-```bash
-docker compose logs -f
-```
-
-### Stop Containers
-```bash
-docker compose down
-```
-
----
-
-## 🛠️ Method 2: Run with Standard Docker CLI
-
-### 1. Build the Docker Image
-```bash
-docker build -t wispr-agent:latest .
-```
-
-### 2. Run the Container
-
-**Non-Interactive / Single Execution:**
-```bash
-docker run --rm --env-file .env wispr-agent:latest
-```
-
-**Interactive Mode (Terminal input / chat interface):**
-```bash
-docker run --rm -it --env-file .env wispr-agent:latest
-```
-
-**Background (Daemon) Mode:**
-```bash
-docker run -d --name wispr_ai_agent --env-file .env --restart unless-stopped wispr-agent:latest
-```
-
-**Inspect Container Logs:**
-```bash
-docker logs -f wispr_ai_agent
-```
-
-**Stop the Running Container:**
-```bash
-docker stop wispr_ai_agent && docker rm wispr_ai_agent
-```
-
----
-
-## 🐍 Method 3: Run Locally with Python Virtual Environment
-
-If you prefer testing directly on your host machine without Docker:
-
-### 1. Activate or Create Virtual Environment
-```bash
-# If .venv already exists:
+# If .venv is already present:
 source .venv/bin/activate
 
-# Or create a fresh environment:
+# Or create a fresh virtual environment:
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-### 2. Install Dependencies
+### Step C: Configure API Keys (`.env`)
+Create your `.env` file from the example template:
+```bash
+cp .env.example .env
+```
+
+Open `.env` and supply your Google Gemini API key:
+```ini
+GOOGLE_API_KEY=your_gemini_api_key_here
+ENVIRONMENT=development
+```
+
+### Step D: Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Run Application
+> [!IMPORTANT]
+> PyAV must be version `< 18` (e.g. `17.1.0`) to maintain compatibility with Faster-Whisper's audio container decoding. This is automatically enforced by [requirements.txt](requirements.txt).
+
+---
+
+## 🚀 3. Execution Modes
+
+### Mode A: Run the Interactive CLI Agent (With Persistent Memory)
+
+Runs the conversational agent in your terminal with the Two-Tier memory engine and real-time response streaming.
+
 ```bash
 python main.py
 ```
 
----
-
-## 🔄 Adding New Packages to your Agent
-
-When you install new libraries during development:
-
-1. Add the package name and version to `requirements.txt`:
-   ```text
-   langchain>=0.2.0
-   pydantic>=2.0.0
-   ```
-2. Rebuild the Docker image:
-   ```bash
-   docker compose build
-   # or
-   docker build -t wispr-agent:latest .
-   ```
+* **Introduce yourself / persona:** e.g., *"I am Gojo, a developer by day and sorcerer by night."*
+* **Ask anything:** Real-time tokens stream immediately via `llm.stream()`.
+* **Exit:** Type `exit` or `quit`.
+  - The agent analyzes today's chat, extracts new user facts, and updates `memory/praveen.json`.
+  - When you restart `python main.py`, the agent instantly recalls your identity!
 
 ---
 
-## 🚀 Deploying to Any Remote Machine
+### Mode B: Run the Voice Input Gateway (Web UI + Faster-Whisper)
 
-Because the application is packaged in a self-contained Docker image, you can deploy it to any server without installing Python or dependencies on the target host:
+Starts the FastAPI server serving the browser-based voice recording interface and Faster-Whisper STT engine.
 
-1. **Tag and Push Image to Docker Hub / Registry:**
-   ```bash
-   docker tag wispr-agent:latest your-username/wispr-agent:latest
-   docker push your-username/wispr-agent:latest
-   ```
-
-2. **Run on Target Server:**
-   ```bash
-   # Ensure .env is present on the target server
-   docker run -d \
-     --name wispr-agent \
-     --restart always \
-     --env-file .env \
-     your-username/wispr-agent:latest
-   ```
-
----
-
-## 🔍 Troubleshooting & Debugging
-
-| Issue | Cause | Fix |
-| :--- | :--- | :--- |
-| `KeyError: 'OPENAI_API_KEY'` | Missing `.env` | Ensure `.env` exists and pass `--env-file .env` |
-| Image build uses old code | Docker caching | Run `docker build --no-cache -t wispr-agent .` |
-| Output does not show in console | Output buffering | Confirmed by `PYTHONUNBUFFERED=1` in Dockerfile |
-| Permission denied inside container | Non-root `appuser` | Container runs under UID 1000. Avoid writing to root-owned paths |
-
-### Open an Interactive Shell inside Container for Debugging:
 ```bash
-docker run --rm -it --entrypoint /bin/bash wispr-agent:latest
+python server.py
 ```
 
+1. Open your browser and navigate to:
+   ```text
+   http://localhost:8000
+   ```
+2. Click the **🎙️ microphone button** and grant microphone permissions when prompted.
+3. Speak your prompt (e.g., *"Hello Gojo, what are we deploying today?"*).
+4. Click the button again to stop.
+5. **Expected Output:**
+   - The audio (`.wav`) is sent to the `/transcribe` endpoint.
+   - Faster-Whisper transcribes the audio on your CPU in ~400ms.
+   - Your terminal prints:
+     ```text
+     ==================================================
+     🎙️ [USER VOICE DETECTED]: "Hello Gojo, what are we deploying today?"
+     ==================================================
+     ```
+   - The recognized speech text appears instantly on the web page.
+
+---
+
+## 🐳 4. Running with Docker
+
+### Build the Image
+```bash
+docker build -t voice-agent:latest .
+```
+
+### Run the Container
+```bash
+docker run --rm -p 8000:8000 --env-file .env voice-agent:latest
+```
+
+* Open `http://localhost:8000` in your host browser.
+* Browser handles host audio natively; container runs completely isolated.
+
+---
+
+## 🔍 5. Troubleshooting & FAQ
+
+| Problem | Cause | Solution |
+| :--- | :--- | :--- |
+| `TypeError: open() got an unexpected keyword argument 'metadata_errors'` | PyAV v19+ incompatibility | Run `pip install "av<18"` |
+| `Microphone permission denied` in browser | Browser security policy | Click the padlock icon in the browser URL bar and allow Microphone access for `localhost`. |
+| `KeyError: 'GOOGLE_API_KEY'` | Missing `.env` | Ensure `.env` is created and contains a valid key. |
+| Model download on first run is slow | First-time Hugging Face pull | Faster-Whisper downloads `base.en` (~145MB) once. Subsequent runs load instantly from local cache. |
+| `GoogleModelNotFoundError: 404 NOT_FOUND` | Deprecated model name | Ensure `model="gemini-3.5-flash-lite"` is used in `main.py`. |

@@ -1,0 +1,104 @@
+# System Architecture & Technical Design
+
+This document details the complete end-to-end architecture of the **Voice AI Agent** project, tracking its evolution from a containerized Python foundation to a real-time, memory-enabled cascaded voice pipeline.
+
+---
+
+## 🏛️ 1. High-Level Architecture Overview
+
+The system is designed around a **Cascaded Decoupled Voice Pipeline** with **Ephemeral-Session State** and **Persistent Long-Term Memory**.
+
+```mermaid
+flowchart TD
+    subgraph Client Layer (Cross-Platform Browser)
+        UI["🌐 Web Interface (Vanilla HTML5 / JS)\n• Captures native OS microphone via MediaRecorder\n• Zero host audio-driver dependency\n• Works on Windows, Mac, Linux, Mobile"]
+    end
+
+    subgraph Gateway Layer (FastAPI)
+        Server["🚀 server.py (FastAPI Gateway)\n• Async HTTP & WebSocket endpoints\n• Multipart audio stream receiver\n• Real-time event orchestration"]
+    end
+
+    subgraph Audio Core (STT & TTS)
+        STT["🗣️ stt_service.py (Faster-Whisper)\n• Model: base.en\n• Engine: CTranslate2 (INT8 CPU Quantization)\n• Sub-second acoustic transcription"]
+        TTS["🔊 tts_service.py (Edge-TTS)\n• Microsoft Azure Neural Voices\n• Natural prosody, zero API cost\n• Sentence-chunked audio streaming"]
+    end
+
+    subgraph Intelligence & Memory (LangChain + Gemini)
+        Agent["🧠 main.py (LangChain Core)\n• Model: Gemini 3.5 Flash Lite\n• Real-time token streaming (`llm.stream`)\n• Persona & alias-aware system instructions"]
+        
+        subgraph Memory Engine
+            RAM["Ephemeral Short-Term Memory (RAM)\n• Pinned SystemMessage\n• Sliding Window (Last 20 turns)\n• Wiped on exit 🗑️"]
+            Disk["Persistent Long-Term Memory (Disk)\n• memory/<user_id>.json\n• Auto-Compaction (Max: 30 ➡️ Target: 15)\n• Deterministic deduplication"]
+        end
+    end
+
+    UI <== HTTP POST / WebSockets ==> Server
+    Server -->|Raw Audio (.wav)| STT
+    STT -->|Transcribed Text| Agent
+    Agent <==> RAM
+    Agent <==> Disk
+    Agent -->|Response Text Stream| TTS
+    TTS -->|Audio Buffer / Stream| Server
+    Server -->|Audio Output Stream| UI
+```
+
+---
+
+## 🚀 2. System Evolution (Phases Completed)
+
+### Phase 1: Containerized & Isolated Foundation
+* **Goal:** Ensure code runs identically across any machine without host dependency conflicts.
+* **Architecture:** Multi-stage `Dockerfile` based on `python:3.12-slim` (Debian Linux).
+* **Security & Cleanliness:** Enforces non-root execution (`appuser`), disabled byte-code compilation (`PYTHONDONTWRITEBYTECODE=1`), and real-time unbuffered logging (`PYTHONUNBUFFERED=1`).
+* **Secret Protection:** Strict `.dockerignore` rules ensuring `.env`, `.venv`, and cache never leak into build layers.
+
+### Phase 2: LangChain Reasoning & Two-Tier Memory
+* **The Stateless Problem:** LLMs have zero native memory; every call is independent.
+* **Two-Tier Memory Solution:**
+  1. **Short-Term Memory (RAM Only):** Active chat turns exist only in memory with a sliding window (`MAX_SHORT_TERM_TURNS = 20`) to prevent context window saturation and token cost inflation.
+  2. **Long-Term Memory (Persistent JSON):** User profile facts stored in `memory/<user_id>.json`. Injected on startup directly into the `SystemMessage`.
+* **Deterministic Delta Extraction:** On session exit, the model analyzes *only* today's conversation (deliberately excluding the system prompt) to identify *new* facts. Python handles deduplication and appending deterministically, avoiding the **"Telephone Game / Lossy Compressive Drift"** flaw.
+* **Auto-Compaction Engine:** When stored facts exceed 30 items, a compaction pass synthesizes and consolidates memory down to 15 core facts, retaining user identity (e.g. Gojo/Sorcerer persona, tech stack) while pruning stale details.
+* **Streaming Response:** Migrated from blocking `llm.invoke()` to `llm.stream()` for real-time word-by-word terminal streaming.
+
+### Phase 3: Audio Core & Cross-Platform Voice Gateway (Current)
+* **The Hardware Passthrough Problem:** Passing microphone/speaker hardware directly into Docker (`/dev/snd`, ALSA) breaks across Windows WSL2 and macOS.
+* **The Browser-Mediated Audio Solution:** The user opens `http://localhost:8000`. The browser uses standard Web Audio APIs (`navigator.mediaDevices.getUserMedia`) to record audio natively on the host OS.
+* **STT Engine (`faster-whisper`):** 
+  - Rewritten Whisper running on **CTranslate2** with **INT8 quantization**.
+  - Uses `base.en` (~145 MB). Delivers **4x faster inference** than standard PyTorch Whisper on standard CPU without requiring an Nvidia GPU.
+  - Resolved PyAV compatibility by pinning `av<18` to support `faster-whisper`'s container decoding.
+
+---
+
+## 📁 3. Directory Layout & Module Responsibilities
+
+```text
+langchainAgent/
+├── memory/
+│   └── praveen.json        # Single persistent user facts file (JSON array)
+├── .dockerignore           # Excludes secrets, venv, and cache from images
+├── .env.example            # Environment variable template
+├── architecture.md         # Comprehensive system architecture document (This file)
+├── BUILD_AND_RUN.md        # Complete execution, CLI, and web server run guide
+├── Dockerfile              # Multi-platform Linux container definition
+├── docker-compose.yml      # Container orchestration configuration
+├── main.py                 # Core LangChain agent with Two-Tier memory engine
+├── README.md               # Project overview
+├── requirements.txt        # Pinned project dependencies
+├── server.py               # FastAPI web gateway & Web Audio testing UI
+└── stt_service.py          # Faster-Whisper speech-to-text service wrapper
+```
+
+---
+
+## 🎯 4. Key Architectural Decisions for Technical Interviews
+
+| Architectural Decision | Chosen Strategy | Why It Was Chosen Over Alternatives |
+| :--- | :--- | :--- |
+| **Audio Transport** | Browser Web Audio via FastAPI | Eliminates host OS sound driver incompatibilities inside Docker containers. |
+| **STT Engine** | `faster-whisper` (CTranslate2 INT8) | 4x faster CPU inference, half the RAM usage compared to standard PyTorch Whisper; runs offline with zero API cost. |
+| **PyAV Decoding** | Pinned `av<18` | Bypasses the PyAV 19+ `metadata_errors` deprecation issue while maintaining stable audio decoding. |
+| **Memory Storage** | Native JSON Array (`.json`) | Eliminates fragile markdown bullet parsing while maintaining human readability and instant Python `json.loads` access. |
+| **Memory Extraction** | Programmatic Delta Merging | Never trusts an LLM prompt to re-summarize past summaries; code deterministically appends new facts to prevent fact loss over time. |
+| **Turnaround Latency** | Sliding Context + Streaming | Keeps prompts under token budgets and enables immediate token streaming via `llm.stream()`. |

@@ -11,5 +11,14 @@ langchain-huggingface>=0.1.0
 # Google GenAI SDK
 google-genai>=0.1.0
 
+# Web Server & API Gateway
+fastapi>=0.110.0
+uvicorn>=0.28.0
+python-multipart>=0.0.9
+
+# Speech-to-Text (STT)
+faster-whisper>=1.0.0
+av<18
+
 # Data manipulation & utilities
 pandas>=2.0.0
