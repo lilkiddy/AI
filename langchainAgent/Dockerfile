@@ -7,7 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# 2. Install essential system dependencies (common for AI & audio/speech agent tools)
+# 2. Install essential system dependencies (ffmpeg is required for audio decoding)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
@@ -26,15 +26,20 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install -r requirements.txt
 
-# 5. Copy the rest of the application code
+# 5. Pre-download Faster-Whisper model into image (ensures instant startup with zero runtime download lag)
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='int8')"
+
+# 6. Copy the rest of the application code
 COPY . .
 
-# Set file ownership to non-root user
-RUN chown -R appuser:appuser /app
+# Set file and home directory ownership to non-root user
+RUN chown -R appuser:appuser /app /home/appuser
 
 # Switch to non-root user
 USER appuser
 
-# 6. Default execution command
-CMD ["python", "main.py"]
+# Expose web gateway port
+EXPOSE 8000
 
+# 7. Default execution command (starts the FastAPI Voice Gateway)
+CMD ["python", "server.py"]

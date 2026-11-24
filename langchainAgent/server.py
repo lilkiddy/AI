@@ -3,8 +3,9 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from stt_service import transcribe_audio
+from main import VoiceAgent
 
-app = FastAPI(title="Voice Agent - STT Testing Gateway")
+app = FastAPI(title="Voice Agent - End-to-End Gateway")
 
 # Enable CORS for browser access
 app.add_middleware(
@@ -15,12 +16,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize the LangChain Agent with persistent memory
+agent = VoiceAgent(user_id="praveen")
+
 HTML_UI = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice AI Agent - Audio Test</title>
+    <title>Voice AI Agent</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -37,7 +41,7 @@ HTML_UI = """<!DOCTYPE html>
             background: #1e293b;
             border-radius: 20px;
             padding: 40px;
-            max-width: 500px;
+            max-width: 580px;
             width: 100%;
             text-align: center;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -46,18 +50,18 @@ HTML_UI = """<!DOCTYPE html>
         h1 { font-size: 1.8rem; margin-bottom: 8px; color: #38bdf8; }
         p.subtitle { font-size: 0.95rem; color: #94a3b8; margin-bottom: 30px; }
         .mic-btn {
-            width: 120px;
-            height: 120px;
+            width: 110px;
+            height: 110px;
             border-radius: 50%;
             background: #3b82f6;
             border: none;
             color: white;
-            font-size: 40px;
+            font-size: 38px;
             cursor: pointer;
             outline: none;
             transition: all 0.2s ease;
             box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
-            margin: 0 auto 25px auto;
+            margin: 0 auto 20px auto;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -80,13 +84,22 @@ HTML_UI = """<!DOCTYPE html>
             min-height: 24px;
             font-weight: 500;
         }
+        .dialogue-box {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            text-align: left;
+            margin-bottom: 25px;
+        }
         .result-box {
             background: #0f172a;
             border-radius: 12px;
-            padding: 20px;
-            text-align: left;
+            padding: 16px 20px;
             border: 1px solid #334155;
-            min-height: 80px;
+        }
+        .ai-box {
+            background: #172554;
+            border-color: #1e40af;
         }
         .result-label {
             font-size: 0.75rem;
@@ -94,27 +107,56 @@ HTML_UI = """<!DOCTYPE html>
             letter-spacing: 0.05em;
             color: #64748b;
             margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .ai-box .result-label {
+            color: #60a5fa;
         }
         .result-text {
-            font-size: 1.05rem;
+            font-size: 1rem;
             color: #f1f5f9;
             line-height: 1.5;
             word-break: break-word;
+        }
+        .btn-end {
+            background: transparent;
+            border: 1px solid #475569;
+            color: #94a3b8;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s ease;
+        }
+        .btn-end:hover {
+            background: #334155;
+            color: #f8fafc;
         }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>Voice Input Gateway</h1>
-        <p class="subtitle">Task 1: Microphone ➡️ .wav ➡️ Faster-Whisper</p>
+        <h1>Voice AI Agent</h1>
+        <p class="subtitle">Microphone ➡️ Faster-Whisper ➡️ LangChain Agent</p>
         
         <button id="micBtn" class="mic-btn" onclick="toggleRecording()">🎙️</button>
         <div id="status" class="status">Click microphone to speak</div>
 
-        <div class="result-box">
-            <div class="result-label">Transcribed Speech:</div>
-            <div id="resultText" class="result-text">Waiting for audio...</div>
+        <div class="dialogue-box">
+            <div class="result-box">
+                <div class="result-label">🗣️ You Said:</div>
+                <div id="userText" class="result-text">Waiting for your voice...</div>
+            </div>
+
+            <div class="result-box ai-box">
+                <div class="result-label">🤖 AI Agent Response:</div>
+                <div id="aiText" class="result-text">AI is ready.</div>
+            </div>
         </div>
+
+        <button class="btn-end" onclick="endSession()">💾 End Session & Save Memory</button>
     </div>
 
     <script>
@@ -124,7 +166,8 @@ HTML_UI = """<!DOCTYPE html>
 
         const micBtn = document.getElementById("micBtn");
         const status = document.getElementById("status");
-        const resultText = document.getElementById("resultText");
+        const userText = document.getElementById("userText");
+        const aiText = document.getElementById("aiText");
 
         async function toggleRecording() {
             if (!isRecording) {
@@ -148,14 +191,14 @@ HTML_UI = """<!DOCTYPE html>
                     micBtn.innerText = "⏹️";
                     status.innerText = "Listening... Click to stop";
                 } catch (err) {
-                    alert("Microphone permission denied or not available: " + err.message);
+                    alert("Microphone permission denied: " + err.message);
                 }
             } else {
                 mediaRecorder.stop();
                 isRecording = false;
                 micBtn.classList.remove("recording");
                 micBtn.innerText = "🎙️";
-                status.innerText = "Transcribing with Faster-Whisper...";
+                status.innerText = "Transcribing & Thinking...";
             }
         }
 
@@ -172,11 +215,25 @@ HTML_UI = """<!DOCTYPE html>
                 if (!response.ok) throw new Error("Server error " + response.status);
 
                 const data = await response.json();
-                resultText.innerText = data.transcription || "(No speech detected)";
-                status.innerText = "Ready. Click microphone to speak again.";
+                userText.innerText = data.transcription || "(No speech detected)";
+                aiText.innerText = data.ai_response || "(No response)";
+                status.innerText = "Ready! Click microphone to reply.";
             } catch (error) {
-                status.innerText = "Error transcribing audio";
-                resultText.innerText = "Failed: " + error.message;
+                status.innerText = "Error processing voice request";
+                aiText.innerText = "Failed: " + error.message;
+            }
+        }
+
+        async function endSession() {
+            try {
+                status.innerText = "Analyzing memory and saving profile...";
+                const res = await fetch("/end-session", { method: "POST" });
+                const data = await res.json();
+                status.innerText = "Memory saved successfully! Session reset.";
+                userText.innerText = "Waiting for your voice...";
+                aiText.innerText = "AI is ready.";
+            } catch (e) {
+                status.innerText = "Could not save memory.";
             }
         }
     </script>
@@ -187,26 +244,48 @@ HTML_UI = """<!DOCTYPE html>
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_ui():
-    """Serves the test interface for recording microphone audio."""
+    """Serves the test interface for microphone audio capture."""
     return HTMLResponse(content=HTML_UI)
 
 
 @app.post("/transcribe")
-async def transcribe_endpoint(file: UploadFile = File(...)):
-    """Receives recorded audio (.wav) from the browser, transcribes it, and prints it."""
+async def transcribe_and_respond(file: UploadFile = File(...)):
+    """
+    1. Transcribes incoming audio using Faster-Whisper.
+    2. Passes recognized text to the LangChain Agent.
+    3. Prints both to terminal and returns them to the UI.
+    """
     audio_bytes = await file.read()
+
+    # Step 1: Transcribe user audio
+    user_text = transcribe_audio(audio_bytes)
     
-    # Run Faster-Whisper transcription
-    transcribed_text = transcribe_audio(audio_bytes)
-    
-    # Print to server terminal
-    print("\n" + "=" * 50)
-    print(f"🎙️ [USER VOICE DETECTED]: \"{transcribed_text}\"")
-    print("=" * 50 + "\n")
-    
-    return JSONResponse(content={"transcription": transcribed_text})
+    print("\n" + "=" * 55)
+    print(f"🎙️ [USER VOICE DETECTED]: \"{user_text}\"")
+
+    # Step 2: Query LangChain Agent if speech was detected
+    ai_reply = ""
+    if user_text and user_text.strip():
+        ai_reply = agent.chat(user_text)
+        print(f"🤖 [AI AGENT RESPONSE]:\n{ai_reply}")
+    else:
+        ai_reply = "I didn't catch that. Could you please repeat?"
+
+    print("=" * 55 + "\n")
+
+    return JSONResponse(content={
+        "transcription": user_text,
+        "ai_response": ai_reply
+    })
+
+
+@app.post("/end-session")
+async def end_session_endpoint():
+    """Analyzes recent conversation and persists long-term facts."""
+    agent.end_session()
+    agent.reset_session()
+    return JSONResponse(content={"status": "session_ended_and_memory_saved"})
 
 
 if __name__ == "__main__":
-    # Runs FastAPI server on port 8000
     uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True)

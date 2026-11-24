@@ -169,30 +169,62 @@ Use this knowledge naturally when relevant. If the user has an alias, nickname, 
 
 
 # =====================================================================
-# MAIN APPLICATION LOOP
+# REUSABLE VOICE AGENT CLASS
+# =====================================================================
+class VoiceAgent:
+    """Manages conversational session state, memory, and LLM reasoning."""
+
+    def __init__(self, user_id: str = "praveen"):
+        self.user_id = user_id
+        load_dotenv(override=True)
+        google_api_key = os.getenv("GOOGLE_API_KEY")
+
+        if not google_api_key:
+            raise EnvironmentError("Please provide the GOOGLE_API_KEY in the .env file")
+
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-3.5-flash-lite",
+            google_api_key=google_api_key,
+        )
+        self.reset_session()
+
+    def reset_session(self) -> None:
+        """Initializes or resets ephemeral in-RAM memory."""
+        self.system_msg = build_system_message(self.user_id)
+        self.messages = [self.system_msg]
+
+    def chat(self, user_text: str) -> str:
+        """Processes a user input turn, appends to RAM memory, and returns AI text."""
+        self.messages.append(HumanMessage(content=user_text))
+
+        # Sliding window: keep SystemMessage (messages[0]) + last N conversation turns
+        active_context = [self.messages[0]] + self.messages[-MAX_SHORT_TERM_TURNS:]
+
+        # Invoke model
+        response = self.llm.invoke(active_context)
+        ai_reply = response.text
+
+        # Append reply to in-RAM memory
+        self.messages.append(AIMessage(content=ai_reply))
+        return ai_reply
+
+    def end_session(self) -> None:
+        """Analyzes session conversation and updates persistent memory on disk."""
+        update_memory_from_session(self.llm, self.user_id, self.messages)
+        memory_file = get_user_memory_path(self.user_id)
+        print(f"📁 Updated {memory_file}")
+        print("🗑️  In-RAM session cleared.")
+
+
+# =====================================================================
+# MAIN APPLICATION LOOP (CLI Mode)
 # =====================================================================
 def main():
-    load_dotenv(override=True)
-    google_api_key = os.getenv("GOOGLE_API_KEY")
+    agent = VoiceAgent(user_id="praveen")
+    memory_file = get_user_memory_path(agent.user_id)
 
-    if not google_api_key:
-        raise EnvironmentError("Please provide the GOOGLE_API_KEY in the .env file")
-
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-3.5-flash-lite",
-        google_api_key=google_api_key,
-    )
-
-    user_id = "praveen"
-    memory_file = get_user_memory_path(user_id)
-
-    print(f"👤 User: {user_id}")
+    print(f"👤 User: {agent.user_id}")
     print(f"📄 Memory File: {memory_file}")
-
-    # In-memory ephemeral session (lives ONLY in RAM)
-    system_msg = build_system_message(user_id)
-    messages = [system_msg]
-
     print("\n🤖 Agent initialized! Type 'exit' or 'quit' to stop.\n" + "-" * 55)
 
     while True:
@@ -205,25 +237,20 @@ def main():
                 print("\nEnding session and analyzing memory...")
                 break
 
-            # Append user message to in-RAM history
-            messages.append(HumanMessage(content=user_input))
+            # Append user message
+            agent.messages.append(HumanMessage(content=user_input))
+            active_context = [agent.messages[0]] + agent.messages[-MAX_SHORT_TERM_TURNS:]
 
-            # Sliding window: keep SystemMessage (messages[0]) + last N conversation turns
-            active_context = [messages[0]] + messages[-MAX_SHORT_TERM_TURNS:]
-
-            # Stream response token-by-token in real time
+            # Stream response in terminal for CLI users
             print("\nAI: ", end="", flush=True)
             full_response = ""
-
-            for chunk in llm.stream(active_context):
+            for chunk in agent.llm.stream(active_context):
                 token = chunk.text
                 print(token, end="", flush=True)
                 full_response += token
+            print()
 
-            print()  # Newline after stream finishes
-
-            # Append full AI reply to in-RAM memory
-            messages.append(AIMessage(content=full_response))
+            agent.messages.append(AIMessage(content=full_response))
 
         except KeyboardInterrupt:
             print("\nSession interrupted.")
@@ -232,11 +259,9 @@ def main():
             print(f"\nError: {e}")
             continue
 
-    # Update persistent JSON memory
-    update_memory_from_session(llm, user_id, messages)
-
-    print(f"📁 Updated {memory_file}")
-    print("🗑️  In-RAM session cleared. Goodbye!")
+    # Finalize memory
+    agent.end_session()
+    print("👋 Goodbye!")
 
 
 if __name__ == "__main__":

@@ -6,13 +6,13 @@ services:
     image: voice-agent:latest
     container_name: voice_ai_agent
     restart: unless-stopped
+    ports:
+      - "8000:8000"
     env_file:
       - path: .env
         required: false
-    # Useful if your agent runs an interactive shell or CLI:
+    # Persist long-term user facts across container restarts:
+    volumes:
+      - ./memory:/app/memory
     stdin_open: true
     tty: true
-    # Mount workspace during local development (changes reflect without rebuild):
-    # volumes:
-    #   - .:/app
-

@@ -100,18 +100,29 @@ python server.py
 
 ## 🐳 4. Running with Docker
 
-### Build the Image
+### Option 1: Using Docker Compose (Simplest & Persists Memory)
+```bash
+docker compose up --build
+```
+* **Persistent Memory:** Docker Compose automatically binds `./memory:/app/memory`, so your facts in `memory/praveen.json` are preserved even after container stops!
+* Open `http://localhost:8000` in your browser.
+
+---
+
+### Option 2: Using Standard Docker CLI
+
+**Build the Image:**
 ```bash
 docker build -t voice-agent:latest .
 ```
 
-### Run the Container
+**Run the Container:**
 ```bash
-docker run --rm -p 8000:8000 --env-file .env voice-agent:latest
+docker run --rm -p 8000:8000 -v $(pwd)/memory:/app/memory --env-file .env voice-agent:latest
 ```
 
 * Open `http://localhost:8000` in your host browser.
-* Browser handles host audio natively; container runs completely isolated.
+* Browser handles host audio natively; container runs completely isolated on any machine!
 
 ---
 

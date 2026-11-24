@@ -1,0 +1,28 @@
+# Virtual environments
+.venv/
+.venv
+venv/
+ENV/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+
+# Environment files with sensitive credentials
+.env
+.env.local
+.env.*.local
+
+# Git & IDE configs
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# Documentation & large image files (not needed inside the runtime container)
+docs/
+*.png
