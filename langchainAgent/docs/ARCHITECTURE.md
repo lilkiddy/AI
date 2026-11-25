@@ -24,7 +24,7 @@ flowchart TD
     end
 
     subgraph Intelligence & Memory (LangChain + Gemini)
-        Agent["🧠 main.py (LangChain Core)\n• Model: Gemini 3.5 Flash Lite\n• Real-time token streaming (`llm.stream`)\n• Persona & alias-aware system instructions"]
+        Agent["🧠 agent.py (LangChain Core)\n• Model: Gemini 3.5 Flash Lite\n• Real-time token streaming (`llm.stream`)\n• Persona & alias-aware system instructions"]
         
         subgraph Memory Engine
             RAM["Ephemeral Short-Term Memory (RAM)\n• Pinned SystemMessage\n• Sliding Window (Last 20 turns)\n• Wiped on exit 🗑️"]
@@ -75,15 +75,17 @@ flowchart TD
 
 ```text
 langchainAgent/
+├── docs/
+│   ├── ARCHITECTURE.md     # Comprehensive system architecture document (This file)
+│   └── voice_agent_flow.png # Visual system workflow diagram
 ├── memory/
 │   └── praveen.json        # Single persistent user facts file (JSON array)
 ├── .dockerignore           # Excludes secrets, venv, and cache from images
 ├── .env.example            # Environment variable template
-├── architecture.md         # Comprehensive system architecture document (This file)
+├── agent.py                # Core LangChain agent with Two-Tier memory engine
 ├── BUILD_AND_RUN.md        # Complete execution, CLI, and web server run guide
 ├── Dockerfile              # Multi-platform Linux container definition
 ├── docker-compose.yml      # Container orchestration configuration
-├── main.py                 # Core LangChain agent with Two-Tier memory engine
 ├── README.md               # Project overview
 ├── requirements.txt        # Pinned project dependencies
 ├── server.py               # FastAPI web gateway & Web Audio testing UI

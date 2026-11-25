@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from stt_service import transcribe_audio
-from main import VoiceAgent
+from agent import VoiceAgent
 
 app = FastAPI(title="Voice Agent - End-to-End Gateway")
 

@@ -59,14 +59,14 @@ pip install -r requirements.txt
 Runs the conversational agent in your terminal with the Two-Tier memory engine and real-time response streaming.
 
 ```bash
-python main.py
+python agent.py
 ```
 
 * **Introduce yourself / persona:** e.g., *"I am Gojo, a developer by day and sorcerer by night."*
 * **Ask anything:** Real-time tokens stream immediately via `llm.stream()`.
 * **Exit:** Type `exit` or `quit`.
   - The agent analyzes today's chat, extracts new user facts, and updates `memory/praveen.json`.
-  - When you restart `python main.py`, the agent instantly recalls your identity!
+  - When you restart `python agent.py`, the agent instantly recalls your identity!
 
 ---
 
@@ -134,4 +134,4 @@ docker run --rm -p 8000:8000 -v $(pwd)/memory:/app/memory --env-file .env voice-
 | `Microphone permission denied` in browser | Browser security policy | Click the padlock icon in the browser URL bar and allow Microphone access for `localhost`. |
 | `KeyError: 'GOOGLE_API_KEY'` | Missing `.env` | Ensure `.env` is created and contains a valid key. |
 | Model download on first run is slow | First-time Hugging Face pull | Faster-Whisper downloads `base.en` (~145MB) once. Subsequent runs load instantly from local cache. |
-| `GoogleModelNotFoundError: 404 NOT_FOUND` | Deprecated model name | Ensure `model="gemini-3.5-flash-lite"` is used in `main.py`. |
+| `GoogleModelNotFoundError: 404 NOT_FOUND` | Deprecated model name | Ensure `model="gemini-3.5-flash-lite"` is used in `agent.py`. |

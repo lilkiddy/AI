@@ -74,7 +74,7 @@ flowchart TD
     end
 
     subgraph Ephemeral Short-Term Memory (RAM Only)
-        Chat["Active Chat Session (Sliding Window: Last 10 turns)\n• User: 'How do I run this?'\n• AI: 'Use .venv/bin/python main.py'"]
+        Chat["Active Chat Session (Sliding Window: Last 10 turns)\n• User: 'How do I run this?'\n• AI: 'Use .venv/bin/python agent.py'"]
     end
 
     MD --> SysPrompt["System Message:\n'You are an assistant.\nKnown facts:\n{MD}'"]
@@ -160,13 +160,14 @@ flowchart TD
 ## 📁 7. Resulting Workspace Structure
 
 ```text
-wisprXscaler/
+langchainAgent/
 ├── memory/
 │   └── praveen.json        # The ONLY memory file (Native JSON array)
 ├── .dockerignore           # Excludes memory/ and .env from Docker image
 ├── .env                    # API keys (GOOGLE_API_KEY)
 ├── Dockerfile              # Container specification
-├── main.py                 # Ephemeral agent loop + Compaction engine
-├── MEMORY_ARCHITECTURE.md  # Architectural reference
+├── agent.py                # Ephemeral agent loop + Compaction engine
+├── docs/
+│   └── MEMORY_ARCHITECTURE.md  # Architectural reference
 └── requirements.txt        # Dependencies
 ```

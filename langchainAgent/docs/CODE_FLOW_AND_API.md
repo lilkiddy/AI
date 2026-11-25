@@ -17,7 +17,7 @@ The system separates transport, speech processing, and agent intelligence into d
             │                                │
             ▼ (Raw Audio Bytes)              ▼ (Transcribed Text)
 ┌────────────────────────┐      ┌────────────────────────┐
-│   The Ears (stt.py)    │      │  The Brain (main.py)   │
+│  The Ears (stt_service.py) │      │  The Brain (agent.py)  │
 │  • Faster-Whisper      │      │  • LangChain Core      │
 │  • CTranslate2 INT8    │      │  • Two-Tier Memory     │
 │  • CPU Sub-second STT  │      │  • Gemini 3.5 Flash    │
@@ -34,7 +34,7 @@ sequenceDiagram
     participant Browser as Browser Client (Web UI)
     participant Server as FastAPI Gateway (server.py)
     participant STT as Faster-Whisper (stt_service.py)
-    participant Agent as LangChain Agent (main.py)
+    participant Agent as LangChain Agent (agent.py)
     participant Disk as Persistent Storage (memory/praveen.json)
 
     Note over Server,Agent: Phase 1: Boot Up & Memory Initialization
@@ -132,7 +132,7 @@ sequenceDiagram
 
 ---
 
-### Module: `main.py` (Intelligence & Memory Core)
+### Module: `agent.py` (Intelligence & Memory Core)
 
 #### Class: `VoiceAgent`
 Stateful orchestrator managing conversation memory, persona, and Gemini LLM interactions.
