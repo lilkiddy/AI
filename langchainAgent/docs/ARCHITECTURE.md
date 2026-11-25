@@ -69,6 +69,12 @@ flowchart TD
   - Uses `base.en` (~145 MB). Delivers **4x faster inference** than standard PyTorch Whisper on standard CPU without requiring an Nvidia GPU.
   - Resolved PyAV compatibility by pinning `av<18` to support `faster-whisper`'s container decoding.
 
+> [!NOTE]
+> **Understanding "Model" vs. "Engine" (The Ollama Analogy):**
+> * **Model (`base.en`):** The static file of trained neural weights (just like a `llama3` weights file or an Android `.dex` file). It cannot run on its own.
+> * **Engine (`CTranslate2`):** The compiled C++ runtime that loads those weights and executes the intensive matrix math on your device's CPU.
+> * **Analogy:** Just like **Ollama** runs local LLM weights (via `llama.cpp`) on your laptop, **CTranslate2** is the dedicated local C++ engine that runs Whisper speech models on your laptop without needing a cloud server or GPU.
+
 ---
 
 ## 📁 3. Directory Layout & Module Responsibilities

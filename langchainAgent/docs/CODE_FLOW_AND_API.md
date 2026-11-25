@@ -166,6 +166,11 @@ Stateful orchestrator managing conversation memory, persona, and Gemini LLM inte
 
 ### Module: `stt_service.py` (Speech-to-Text Engine)
 
+> **💡 Mental Model (Ollama Analogy):**
+> * **Whisper (`base.en`)** = The AI Model (static neural weights file).
+> * **CTranslate2** = The Execution Engine (fast C++ runtime doing matrix math on CPU, exactly like how **Ollama** uses `llama.cpp` to run local LLMs).
+> * **`faster-whisper`** = The Python library connecting the model file to the CTranslate2 engine.
+
 * **`get_stt_model() -> WhisperModel`**:
   Lazy-loads and caches the singleton `WhisperModel("base.en", device="cpu", compute_type="int8")`. Uses CTranslate2 INT8 quantization for sub-second CPU transcription with 50% lower RAM footprint.
 * **`transcribe_audio(audio_data: bytes | str) -> str`**:
