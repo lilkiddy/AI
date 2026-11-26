@@ -1,0 +1,140 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #0f172a;
+    color: #f8fafc;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.card {
+    background: #1e293b;
+    border-radius: 20px;
+    padding: 40px;
+    max-width: 580px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 1px solid #334155;
+}
+
+h1 {
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+    color: #38bdf8;
+}
+
+p.subtitle {
+    font-size: 0.95rem;
+    color: #94a3b8;
+    margin-bottom: 30px;
+}
+
+.mic-btn {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: #3b82f6;
+    border: none;
+    color: white;
+    font-size: 38px;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+    margin: 0 auto 20px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mic-btn:hover {
+    transform: scale(1.05);
+    background: #2563eb;
+}
+
+.mic-btn.recording {
+    background: #ef4444;
+    animation: pulse 1.2s infinite;
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.7);
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.status {
+    font-size: 0.95rem;
+    color: #cbd5e1;
+    margin-bottom: 25px;
+    min-height: 24px;
+    font-weight: 500;
+}
+
+.dialogue-box {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    text-align: left;
+    margin-bottom: 25px;
+}
+
+.result-box {
+    background: #0f172a;
+    border-radius: 12px;
+    padding: 16px 20px;
+    border: 1px solid #334155;
+}
+
+.ai-box {
+    background: #172554;
+    border-color: #1e40af;
+}
+
+.result-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #64748b;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ai-box .result-label {
+    color: #60a5fa;
+}
+
+.result-text {
+    font-size: 1rem;
+    color: #f1f5f9;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.btn-end {
+    background: transparent;
+    border: 1px solid #475569;
+    color: #94a3b8;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+}
+
+.btn-end:hover {
+    background: #334155;
+    color: #f8fafc;
+}

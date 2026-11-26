@@ -45,9 +45,11 @@ sequenceDiagram
     Disk-->>Agent: Returns ["Gojo persona", "7 yrs Linux STB", ...]
     Agent->>Agent: build_system_message() (Pins facts in SystemMessage)
 
-    Note over Browser,Server: Phase 2: Page Delivery
+    Note over Browser,Server: Phase 2: Page & Static Asset Delivery
     Browser->>Server: GET /
-    Server-->>Browser: Returns HTML5 + JS MediaRecorder UI
+    Server-->>Browser: Returns static/index.html
+    Browser->>Server: GET /static/styles.css & GET /static/app.js
+    Server-->>Browser: Serves CSS styling & JS logic from /static mount
 
     Note over Browser,Disk: Phase 3: Voice Input & Agent Response
     Browser->>Browser: User speaks, JS records .wav Blob
@@ -97,8 +99,9 @@ sequenceDiagram
 
 ### Phase 2: Client Connection
 1. User visits `http://localhost:8000`.
-2. Route `GET /` calls `serve_ui()`, returning the HTML/CSS/JavaScript interface.
-3. JavaScript initializes `navigator.mediaDevices.getUserMedia({ audio: true })`.
+2. Route `GET /` calls `serve_ui()`, returning `static/index.html`.
+3. Chrome parses `<link href="/static/styles.css">` and `<script src="/static/app.js">` inside `index.html`, and automatically fetches both files from FastAPI's `/static` mount.
+4. JavaScript initializes `navigator.mediaDevices.getUserMedia({ audio: true })`.
 
 ### Phase 3: The Active Voice Loop
 1. User clicks **🎙️**, speaks, and clicks stop.
@@ -140,7 +143,7 @@ sequenceDiagram
 
 | Function | Signature | Description |
 | :--- | :--- | :--- |
-| **`serve_ui`** | `GET /` ➡️ `HTMLResponse` | Serves the single-page dark-mode web application and Web Audio recording script. |
+| **`serve_ui`** | `GET /` ➡️ `FileResponse` | Serves `static/index.html`; Chrome then auto-loads `/static/styles.css` and `/static/app.js`. |
 | **`transcribe_and_respond`** | `POST /transcribe(file: UploadFile)` ➡️ `JSONResponse` | Receives `.wav` audio, transcribes via Faster-Whisper, queries `VoiceAgent`, logs to terminal, and returns results. |
 | **`synthesize_endpoint`** | `POST /synthesize(body: dict)` ➡️ `Response (audio/mpeg)` | Receives JSON `{"text": "..."}`, converts to spoken MP3 audio via Edge-TTS, and returns raw MP3 bytes. |
 | **`end_session_endpoint`** | `POST /end-session` ➡️ `JSONResponse` | Triggers agent long-term memory extraction, persistence, compaction, and RAM reset. |

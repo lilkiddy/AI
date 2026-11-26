@@ -90,6 +90,10 @@ langchainAgent/
 │   └── voice_agent_flow.png # Visual system workflow diagram
 ├── memory/
 │   └── praveen.json        # Single persistent user facts file (JSON array)
+├── static/
+│   ├── index.html          # Web UI structure (links CSS and JS)
+│   ├── styles.css          # Dark-mode styling & mic button animations
+│   └── app.js              # Browser MediaRecorder, fetch(), & TTS playback
 ├── .dockerignore           # Excludes secrets, venv, and cache from images
 ├── .env.example            # Environment variable template
 ├── agent.py                # Core LangChain agent with Two-Tier memory engine

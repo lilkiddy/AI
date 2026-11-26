@@ -18,33 +18,49 @@ Every website or web UI is made of three simple things working together:
 
 ## 🏠 2. How `server.py` Sends the Website to Your Screen
 
-When you open `http://localhost:8000` in Google Chrome:
+Instead of cramming all HTML, CSS, and JavaScript inside Python, the frontend lives in its own `static/` folder:
+* `static/index.html` — The page structure (like `activity_main.xml` in Android)
+* `static/styles.css` — Colors, spacing, and animations (like `styles.xml`)
+* `static/app.js` — Click handlers, mic recording, `fetch()`, and `playTTS()` (like `MainActivity.kt`)
+
+> **Why is it named `static/`?**
+> Web servers split files into two categories:
+> * **Static files (`static/`):** Fixed files that **never change** per request (HTML, CSS, JS, images)—just like `res/` or `assets/` in Android. FastAPI hands them out as-is.
+> * **Dynamic routes (`/transcribe`, `/synthesize`, `/end-session`):** Endpoints where Python runs AI logic (Whisper, Gemini, Edge-TTS) and creates a brand-new response every time.
+
+When you open `http://localhost:8000` in Google Chrome, Chrome automatically makes **3 quick requests**:
 
 ```mermaid
 sequenceDiagram
     participant Browser as Your Browser (Chrome)
     participant Python as Python (server.py)
 
-    Browser->>Python: "Hey, someone typed localhost:8000! Give me the webpage."
-    Note over Python: Python runs: serve_ui()<br/>It grabs the HTML string.
-    Python-->>Browser: Sends back the big HTML/CSS/JS text string.
-    Note over Browser: Browser reads the text,<br/>paints the dark background,<br/>and draws the microphone button!
+    Browser->>Python: 1. GET / ("Give me the homepage")
+    Python-->>Browser: Sends static/index.html
+    Note over Browser: Chrome reads index.html and sees<br/>&lt;link href="/static/styles.css"&gt;<br/>and &lt;script src="/static/app.js"&gt;
+    Browser->>Python: 2. GET /static/styles.css
+    Python-->>Browser: Sends styles.css
+    Browser->>Python: 3. GET /static/app.js
+    Python-->>Browser: Sends app.js
+    Note over Browser: Chrome combines all 3:<br/>draws the UI, applies dark theme,<br/>and runs app.js in the browser!
 ```
 
 In [server.py](file:///home/prvn/ai/experiments/AI/langchainAgent/server.py):
 ```python
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 @app.get("/")
 async def serve_ui():
-    return HTMLResponse(content=HTML_UI)
+    return FileResponse("static/index.html")
 ```
-* **`@app.get("/")`**: Tells Python: *"Whenever someone visits the main address (`/`), run this function."*
-* **`HTML_UI`**: Just a Python string holding the HTML, CSS, and JavaScript. Python simply hands this string to Chrome.
+* **`app.mount("/static", ...)`**: Tells FastAPI: *"If the browser asks for any file under `/static/...`, serve it directly from the `static/` folder."*
+* **`@app.get("/")`**: Sends `static/index.html` when you visit `http://localhost:8000`. Chrome reads the `<link>` and `<script>` tags inside `index.html` and automatically fetches `styles.css` and `app.js` right after.
 
 ---
 
-## 🎨 3. What Does the HTML Code Actually Do?
+## 🎨 3. What Does the Frontend Code Actually Do?
 
-Inside the `HTML_UI` string, you see:
+Inside the `static/` folder:
 
 ### A. The Skeleton (HTML)
 ```html

@@ -39,6 +39,10 @@ langchainAgent/
 │   └── voice_agent_flow.png             # Visual system workflow diagram
 ├── memory/
 │   └── praveen.json                     # Persistent user facts & persona storage (JSON)
+├── static/
+│   ├── index.html                       # Web UI structure (links CSS and JS)
+│   ├── styles.css                       # Dark-mode styling & mic button animations
+│   └── app.js                           # Browser MediaRecorder, fetch(), & TTS playback
 ├── .dockerignore                        # Prevents venv, cache, and secrets from entering image
 ├── .env.example                         # Template for API keys and configuration
 ├── agent.py                             # LangChain VoiceAgent core, CLI mode & Two-Tier memory
