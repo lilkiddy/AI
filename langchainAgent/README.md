@@ -13,7 +13,10 @@ Browser Mic (.wav) ──▶ FastAPI Gateway (server.py)
                               │
                               ├──▶ Faster-Whisper STT (stt_service.py)
                               └──▶ LangChain + Gemini Agent (agent.py)
+                                         │
                                          └──▶ Persistent Memory (memory/praveen.json)
+                              ◀──
+                              └──▶ Edge-TTS (tts_service.py) ──▶ MP3 Audio ──▶ Browser Speaker
 ```
 
 ### Key Highlights
@@ -45,7 +48,8 @@ langchainAgent/
 ├── README.md                            # Project overview & documentation
 ├── requirements.txt                     # Python package dependencies
 ├── server.py                            # FastAPI voice gateway & browser Web Audio UI
-└── stt_service.py                       # Faster-Whisper CTranslate2 STT service wrapper
+├── stt_service.py                       # Faster-Whisper CTranslate2 STT service wrapper
+└── tts_service.py                       # Edge-TTS text-to-speech service wrapper
 ```
 
 ---
@@ -91,7 +95,7 @@ Then open `http://localhost:8000` in your browser. *(To run text-only CLI mode i
 
 All architectural references, execution flows, and deep-dive technical guides are organized in [`docs/`](docs/):
 
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: End-to-end design, system evolution (Phases 1–3), and interview talking points.
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: End-to-end design, system evolution (Phases 1–3), and architectural decisions with rationale.
 - **[CODE_FLOW_AND_API.md](docs/CODE_FLOW_AND_API.md)**: Function-by-function execution sequence, phase lifecycle, and REST API contract.
 - **[FRONTEND_AND_COMMUNICATION.md](docs/FRONTEND_AND_COMMUNICATION.md)**: Beginner-friendly, zero-jargon explanation of how the UI records voice and talks to Python.
 - **[MEMORY_ARCHITECTURE.md](docs/MEMORY_ARCHITECTURE.md)**: Deep dive into the Two-Tier memory system, deterministic delta updates, and auto-compaction.

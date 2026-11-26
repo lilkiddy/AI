@@ -20,5 +20,8 @@ python-multipart>=0.0.9
 faster-whisper>=1.0.0
 av<18
 
+# Text-to-Speech (TTS)
+edge-tts>=6.1.0
+
 # Data manipulation & utilities
 pandas>=2.0.0

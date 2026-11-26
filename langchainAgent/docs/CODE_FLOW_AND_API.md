@@ -17,7 +17,8 @@ The system separates transport, speech processing, and agent intelligence into d
             │                                │
             ▼ (Raw Audio Bytes)              ▼ (Transcribed Text)
 ┌────────────────────────┐      ┌────────────────────────┐
-│  The Ears (stt_service.py) │      │  The Brain (agent.py)  │
+│  The Ears              |      |   The Brain (agent.py) |
+|        (stt_service.py)│      │                        │
 │  • Faster-Whisper      │      │  • LangChain Core      │
 │  • CTranslate2 INT8    │      │  • Two-Tier Memory     │
 │  • CPU Sub-second STT  │      │  • Gemini 3.5 Flash    │
@@ -35,6 +36,7 @@ sequenceDiagram
     participant Server as FastAPI Gateway (server.py)
     participant STT as Faster-Whisper (stt_service.py)
     participant Agent as LangChain Agent (agent.py)
+    participant TTS as Edge-TTS (tts_service.py)
     participant Disk as Persistent Storage (memory/praveen.json)
 
     Note over Server,Agent: Phase 1: Boot Up & Memory Initialization
@@ -59,6 +61,12 @@ sequenceDiagram
     Agent->>Agent: Appends AIMessage to in-RAM memory
     Agent-->>Server: Returns "You are Gojo, strongest sorcerer..."
     Server-->>Browser: JSON {"transcription": "...", "ai_response": "..."}
+    Browser->>Browser: Updates UI text boxes & calls playTTS()
+    Browser->>Server: POST /synthesize (JSON: {"text": ai_response})
+    Server->>TTS: synthesize_speech(text)
+    TTS-->>Server: Returns MP3 audio bytes
+    Server-->>Browser: HTTP 200 (audio/mpeg MP3 bytes)
+    Browser->>Browser: Plays MP3 through speaker via new Audio()
 
     Note over Browser,Disk: Phase 4: Memory Persistence & Compaction
     Browser->>Server: POST /end-session
@@ -107,6 +115,12 @@ sequenceDiagram
      - Invokes Gemini: `response = self.llm.invoke(active_context)`.
      - Appends `AIMessage(content=response.text)` to `self.messages`.
 4. Server logs both user speech and AI response to the terminal and returns them as JSON to update the webpage.
+5. Browser receives the JSON, displays the text, then sends a `POST /synthesize` request with the AI response text.
+6. `synthesize_endpoint(body)` runs:
+   - Calls `synthesize_speech(text)` from `tts_service.py`.
+   - Edge-TTS connects to Microsoft's Neural Voice service via WebSocket and streams back MP3 audio chunks.
+   - Returns raw MP3 bytes to the browser.
+7. Browser plays the MP3 audio through the speaker using the Web Audio API (`new Audio()`).
 
 ### Phase 4: Session Finalization & Compaction
 1. User clicks **"💾 End Session & Save Memory"** (or terminates process).
@@ -128,6 +142,7 @@ sequenceDiagram
 | :--- | :--- | :--- |
 | **`serve_ui`** | `GET /` ➡️ `HTMLResponse` | Serves the single-page dark-mode web application and Web Audio recording script. |
 | **`transcribe_and_respond`** | `POST /transcribe(file: UploadFile)` ➡️ `JSONResponse` | Receives `.wav` audio, transcribes via Faster-Whisper, queries `VoiceAgent`, logs to terminal, and returns results. |
+| **`synthesize_endpoint`** | `POST /synthesize(body: dict)` ➡️ `Response (audio/mpeg)` | Receives JSON `{"text": "..."}`, converts to spoken MP3 audio via Edge-TTS, and returns raw MP3 bytes. |
 | **`end_session_endpoint`** | `POST /end-session` ➡️ `JSONResponse` | Triggers agent long-term memory extraction, persistence, compaction, and RAM reset. |
 
 ---
@@ -161,6 +176,15 @@ Stateful orchestrator managing conversation memory, persona, and Gemini LLM inte
   Memory consolidation pass. When facts count > 30, asks Gemini to consolidate and reduce memory to the top 15 essential facts while strictly preserving foundational identity.
 * **`main() -> None`**:
   Interactive command-line (CLI) fallback loop using `VoiceAgent` and real-time terminal token streaming via `llm.stream()`.
+
+---
+
+### Module: `tts_service.py` (Text-to-Speech Engine)
+
+> **How it works:** `edge-tts` connects to Microsoft's free Edge Read Aloud service (the same engine behind the browser's "Read Aloud" feature) over WebSocket. No API key is required. It streams back high-quality MP3 audio with natural neural voice prosody.
+
+* **`synthesize_speech(text: str) -> bytes`** *(async)*:
+  Sends the input text to Microsoft's Edge Neural TTS service using the `en-US-GuyNeural` voice. Collects streamed MP3 audio chunks and returns them as a single `bytes` buffer.
 
 ---
 
@@ -201,7 +225,20 @@ Stateful orchestrator managing conversation memory, persona, and Gemini LLM inte
 
 ---
 
-### 3. End Session & Persist Memory
+### 3. Synthesize Speech (TTS)
+* **Endpoint:** `POST /synthesize`
+* **Content-Type:** `application/json`
+* **Request Body:**
+  ```json
+  {
+    "text": "You are Gojo, the strongest sorcerer alive!"
+  }
+  ```
+* **Response:** `200 OK` (`audio/mpeg`) — Raw MP3 audio bytes
+
+---
+
+### 4. End Session & Persist Memory
 * **Endpoint:** `POST /end-session`
 * **Response:** `200 OK` (`application/json`)
   ```json

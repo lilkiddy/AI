@@ -1,8 +1,9 @@
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from stt_service import transcribe_audio
+from tts_service import synthesize_speech
 from agent import VoiceAgent
 
 app = FastAPI(title="Voice Agent - End-to-End Gateway")
@@ -139,7 +140,7 @@ HTML_UI = """<!DOCTYPE html>
 <body>
     <div class="card">
         <h1>Voice AI Agent</h1>
-        <p class="subtitle">Microphone ➡️ Faster-Whisper ➡️ LangChain Agent</p>
+        <p class="subtitle">Microphone ➡️ Faster-Whisper ➡️ LangChain Agent ➡️ Edge-TTS</p>
         
         <button id="micBtn" class="mic-btn" onclick="toggleRecording()">🎙️</button>
         <div id="status" class="status">Click microphone to speak</div>
@@ -163,6 +164,7 @@ HTML_UI = """<!DOCTYPE html>
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
+        let audioPlayer = new Audio();  // Reusable audio player for TTS playback
 
         const micBtn = document.getElementById("micBtn");
         const status = document.getElementById("status");
@@ -217,10 +219,51 @@ HTML_UI = """<!DOCTYPE html>
                 const data = await response.json();
                 userText.innerText = data.transcription || "(No speech detected)";
                 aiText.innerText = data.ai_response || "(No response)";
+                status.innerText = "🔊 Speaking response...";
+
+                // Play AI response as audio via Edge-TTS
+                if (data.ai_response) {
+                    await playTTS(data.ai_response);
+                }
                 status.innerText = "Ready! Click microphone to reply.";
             } catch (error) {
                 status.innerText = "Error processing voice request";
                 aiText.innerText = "Failed: " + error.message;
+            }
+        }
+
+        async function playTTS(text) {
+            try {
+                // Stop any currently playing audio
+                audioPlayer.pause();
+                audioPlayer.currentTime = 0;
+
+                // Fetch MP3 audio from the /synthesize endpoint
+                const response = await fetch("/synthesize", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) throw new Error("TTS error " + response.status);
+
+                // Convert response to a playable audio blob
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+
+                audioPlayer.src = audioUrl;
+                await audioPlayer.play();
+
+                // Wait for audio to finish playing before returning
+                await new Promise(resolve => {
+                    audioPlayer.onended = resolve;
+                    audioPlayer.onerror = resolve;
+                });
+
+                // Clean up the blob URL to free memory
+                URL.revokeObjectURL(audioUrl);
+            } catch (err) {
+                console.error("TTS playback failed:", err);
             }
         }
 
@@ -285,6 +328,25 @@ async def end_session_endpoint():
     agent.end_session()
     agent.reset_session()
     return JSONResponse(content={"status": "session_ended_and_memory_saved"})
+
+
+@app.post("/synthesize")
+async def synthesize_endpoint(body: dict):
+    """
+    Converts AI response text into spoken audio (MP3) using Edge-TTS.
+
+    Receives: JSON body { "text": "Hello, I am Gojo..." }
+    Returns:  Raw MP3 audio bytes with Content-Type: audio/mpeg
+    """
+    text = body.get("text", "")
+    if not text.strip():
+        return Response(content=b"", media_type="audio/mpeg")
+
+    print(f"🔊 [TTS SYNTHESIZING]: {len(text)} characters")
+    audio_bytes = await synthesize_speech(text)
+    print(f"✅ [TTS COMPLETE]: {len(audio_bytes)} bytes of MP3 audio")
+
+    return Response(content=audio_bytes, media_type="audio/mpeg")
 
 
 if __name__ == "__main__":

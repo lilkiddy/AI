@@ -69,11 +69,11 @@ Saving every conversation turn to disk creates unmanageable disk clutter and pri
 
 ```mermaid
 flowchart TD
-    subgraph Persistent Long-Term Memory (Disk)
+    subgraph Persistent["Persistent Long-Term Memory (Disk)"]
         MD["memory/praveen.json\n• Name is Praveen\n• Working on WisprXscaler agent\n• Uses Python 3.12, Docker, Linux"]
     end
 
-    subgraph Ephemeral Short-Term Memory (RAM Only)
+    subgraph Ephemeral["Ephemeral Short-Term Memory (RAM Only)"]
         Chat["Active Chat Session (Sliding Window: Last 10 turns)\n• User: 'How do I run this?'\n• AI: 'Use .venv/bin/python agent.py'"]
     end
 
