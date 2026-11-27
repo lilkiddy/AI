@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -21,8 +22,9 @@ app.add_middleware(
 # Serve static frontend assets (HTML, CSS, JS)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Initialize the LangChain Agent with persistent memory
+# Initialize the LangChain Agent with persistent memory and lock shared state across worker threads
 agent = VoiceAgent(user_id="praveen")
+agent_lock = asyncio.Lock()
 
 
 @app.get("/")
@@ -40,16 +42,17 @@ async def transcribe_and_respond(file: UploadFile = File(...)):
     """
     audio_bytes = await file.read()
 
-    # Step 1: Transcribe user audio
-    user_text = transcribe_audio(audio_bytes)
+    # Step 1: Transcribe user audio off the event loop
+    user_text = await asyncio.to_thread(transcribe_audio, audio_bytes)
 
     print("\n" + "=" * 55)
     print(f"🎙️ [USER VOICE DETECTED]: \"{user_text}\"")
 
-    # Step 2: Query LangChain Agent if speech was detected
+    # Step 2: Query LangChain Agent off the event loop under agent_lock
     ai_reply = ""
     if user_text and user_text.strip():
-        ai_reply = agent.chat(user_text)
+        async with agent_lock:
+            ai_reply = await asyncio.to_thread(agent.chat, user_text)
         print(f"🤖 [AI AGENT RESPONSE]:\n{ai_reply}")
     else:
         ai_reply = "I didn't catch that. Could you please repeat?"
@@ -65,8 +68,9 @@ async def transcribe_and_respond(file: UploadFile = File(...)):
 @app.post("/end-session")
 async def end_session_endpoint():
     """Analyzes recent conversation and persists long-term facts."""
-    agent.end_session()
-    agent.reset_session()
+    async with agent_lock:
+        await asyncio.to_thread(agent.end_session)
+        agent.reset_session()
     return JSONResponse(content={"status": "session_ended_and_memory_saved"})
 
 

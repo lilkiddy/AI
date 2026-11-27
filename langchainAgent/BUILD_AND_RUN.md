@@ -86,7 +86,7 @@ python server.py
 3. Speak your prompt (e.g., *"Hello Gojo, what are we deploying today?"*).
 4. Click the button again to stop.
 5. **Expected Output:**
-   - The audio (`.wav`) is sent to the `/transcribe` endpoint.
+   - Browser-native audio (`WebM/Opus`) is sent to the `/transcribe` endpoint and streamed in-memory to Faster-Whisper.
    - Faster-Whisper transcribes the audio on your CPU in ~400ms.
    - Your terminal prints:
      ```text

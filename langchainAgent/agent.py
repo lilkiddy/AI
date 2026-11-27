@@ -2,8 +2,18 @@ import os
 import json
 from pathlib import Path
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+
+
+# Structured Output Schema
+class FactList(BaseModel):
+    facts: list[str] = Field(
+        default_factory=list,
+        description="List of concise, enduring user facts.",
+    )
+
 
 # Configuration
 MEMORY_DIR = Path("memory")
@@ -52,19 +62,18 @@ Rules:
 1. ALWAYS RETAIN core identity: Name, chosen alias/persona, primary role, key technical stack, long-term goals.
 2. MERGE related or overlapping skills into single concise points.
 3. REMOVE outdated, redundant, or minor trivial details.
-4. Respond ONLY with a valid JSON array of strings containing at most {TARGET_COMPACT_FACTS} points.
-Example: ["Identifies as baki / boxxer", "Linux Android STB Developer with 7 years experience"]
+4. Return at most {TARGET_COMPACT_FACTS} concise points.
 
 Current Facts:
 {json.dumps(facts, indent=2)}
 """
 
     try:
-        response = llm.invoke([HumanMessage(content=compaction_prompt)])
-        raw_text = response.text.strip().replace("```json", "").replace("```", "").strip()
-        compacted = json.loads(raw_text)
+        structured_llm = llm.with_structured_output(FactList)
+        result = structured_llm.invoke([HumanMessage(content=compaction_prompt)])
+        compacted = [f.strip() for f in result.facts if f.strip()][:TARGET_COMPACT_FACTS]
 
-        if isinstance(compacted, list) and compacted:
+        if compacted:
             save_user_facts(user_id, compacted)
             print(f"🧹 Compaction complete! Reduced from {len(facts)} to {len(compacted)} core facts.")
             return compacted
@@ -112,19 +121,18 @@ Today's Conversation Transcript:
 {transcript}
 
 Rules:
-1. Capture self-identities, titles, aliases, or personas even if playful, fictional, or metaphorical (e.g. "Identifies as Gojo / Sorcerer by night, Developer by day") enduring facts about the user..
+1. Capture self-identities, titles, aliases, or personas even if playful, fictional, or metaphorical (e.g. "Identifies as Gojo / Sorcerer by night, Developer by day") enduring facts about the user.
 2. Do NOT re-extract or rephrase already known facts.
 3. Do NOT record temporary questions or conversational chatter.
-4. Respond ONLY with a valid JSON array of strings, e.g. ["Uses Ubuntu Linux", "Prefers JSON storage"].
-5. If no new enduring facts were learned today, return [].
+4. If no new enduring facts were learned today, return an empty list.
 """
 
     try:
-        response = llm.invoke([HumanMessage(content=extraction_prompt)])
-        raw_text = response.text.strip().replace("```json", "").replace("```", "").strip()
-        new_facts = json.loads(raw_text)
+        structured_llm = llm.with_structured_output(FactList)
+        result = structured_llm.invoke([HumanMessage(content=extraction_prompt)])
+        new_facts = [f.strip() for f in result.facts if f.strip()]
 
-        if isinstance(new_facts, list) and new_facts:
+        if new_facts:
             added_facts = []
             lower_existing = {f.lower() for f in existing_facts}
 
@@ -193,20 +201,42 @@ class VoiceAgent:
         self.system_msg = build_system_message(self.user_id)
         self.messages = [self.system_msg]
 
+    def _get_active_context(self) -> list:
+        """Returns pinned SystemMessage plus the rolling short-term conversation window."""
+        return [self.messages[0]] + self.messages[1:][-MAX_SHORT_TERM_TURNS:]
+
     def chat(self, user_text: str) -> str:
         """Processes a user input turn, appends to RAM memory, and returns AI text."""
         self.messages.append(HumanMessage(content=user_text))
 
-        # Sliding window: keep SystemMessage (messages[0]) + last N conversation turns
-        active_context = [self.messages[0]] + self.messages[-MAX_SHORT_TERM_TURNS:]
-
-        # Invoke model
-        response = self.llm.invoke(active_context)
+        # Invoke model with sliding window context
+        response = self.llm.invoke(self._get_active_context())
         ai_reply = response.text
 
         # Append reply to in-RAM memory
         self.messages.append(AIMessage(content=ai_reply))
         return ai_reply
+
+    def chat_stream(self, user_text: str):
+        """Streams AI tokens for a user turn and appends the completed reply to RAM."""
+        self.messages.append(HumanMessage(content=user_text))
+        chunks: list[str] = []
+
+        try:
+            for chunk in self.llm.stream(self._get_active_context()):
+                token = chunk.text
+                if token:
+                    chunks.append(token)
+                    yield token
+        except Exception:
+            self.messages.pop()
+            raise
+
+        full_response = "".join(chunks)
+        if full_response.strip():
+            self.messages.append(AIMessage(content=full_response))
+        else:
+            self.messages.pop()
 
     def end_session(self) -> None:
         """Analyzes session conversation and updates persistent memory on disk."""
@@ -237,20 +267,11 @@ def main():
                 print("\nEnding session and analyzing memory...")
                 break
 
-            # Append user message
-            agent.messages.append(HumanMessage(content=user_input))
-            active_context = [agent.messages[0]] + agent.messages[-MAX_SHORT_TERM_TURNS:]
-
             # Stream response in terminal for CLI users
             print("\nAI: ", end="", flush=True)
-            full_response = ""
-            for chunk in agent.llm.stream(active_context):
-                token = chunk.text
+            for token in agent.chat_stream(user_input):
                 print(token, end="", flush=True)
-                full_response += token
             print()
-
-            agent.messages.append(AIMessage(content=full_response))
 
         except KeyboardInterrupt:
             print("\nSession interrupted.")

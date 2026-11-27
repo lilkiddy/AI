@@ -9,7 +9,7 @@ A containerized, end-to-end **Voice AI Agent** powered by **FastAPI**, **Faster-
 Speak directly into your browser microphone and converse with an AI agent that remembers your identity, preferences, and context across sessions—running identically on your local machine or inside Docker.
 
 ```text
-Browser Mic (.wav) ──▶ FastAPI Gateway (server.py)
+Browser Mic (WebM/Opus) ──▶ FastAPI Gateway (server.py)
                               │
                               ├──▶ Faster-Whisper STT (stt_service.py)
                               └──▶ LangChain + Gemini Agent (agent.py)

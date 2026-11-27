@@ -1,6 +1,8 @@
 let mediaRecorder;
+let activeStream = null;
 let audioChunks = [];
 let isRecording = false;
+let isProcessing = false;
 let audioPlayer = new Audio(); // Reusable audio player for TTS playback
 
 const micBtn = document.getElementById("micBtn");
@@ -8,11 +10,32 @@ const status = document.getElementById("status");
 const userText = document.getElementById("userText");
 const aiText = document.getElementById("aiText");
 
+function releaseMicStream() {
+    if (activeStream) {
+        activeStream.getTracks().forEach(track => track.stop());
+        activeStream = null;
+    }
+}
+
+function getFileExtension(mimeType) {
+    const mime = (mimeType || "").toLowerCase();
+    if (mime.includes("ogg")) return "ogg";
+    if (mime.includes("mp4")) return "mp4";
+    if (mime.includes("wav")) return "wav";
+    return "webm";
+}
+
 async function toggleRecording() {
+    if (isProcessing) return;
+
     if (!isRecording) {
+        // Stop any ongoing TTS playback if user starts speaking again
+        audioPlayer.pause();
+        audioPlayer.currentTime = 0;
+
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
+            activeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(activeStream);
             audioChunks = [];
 
             mediaRecorder.ondataavailable = event => {
@@ -20,7 +43,9 @@ async function toggleRecording() {
             };
 
             mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                const mimeType = mediaRecorder.mimeType || "audio/webm";
+                releaseMicStream();
+                const audioBlob = new Blob(audioChunks, { type: mimeType });
                 await sendAudioToServer(audioBlob);
             };
 
@@ -30,6 +55,7 @@ async function toggleRecording() {
             micBtn.innerText = "⏹️";
             status.innerText = "Listening... Click to stop";
         } catch (err) {
+            releaseMicStream();
             alert("Microphone permission denied: " + err.message);
         }
     } else {
@@ -42,8 +68,12 @@ async function toggleRecording() {
 }
 
 async function sendAudioToServer(blob) {
+    isProcessing = true;
+    micBtn.disabled = true;
+
+    const ext = getFileExtension(blob.type);
     const formData = new FormData();
-    formData.append("file", blob, "recording.wav");
+    formData.append("file", blob, `recording.${ext}`);
 
     try {
         const response = await fetch("/transcribe", {
@@ -66,6 +96,9 @@ async function sendAudioToServer(blob) {
     } catch (error) {
         status.innerText = "Error processing voice request";
         aiText.innerText = "Failed: " + error.message;
+    } finally {
+        isProcessing = false;
+        micBtn.disabled = false;
     }
 }
 
@@ -105,6 +138,7 @@ async function playTTS(text) {
 }
 
 async function endSession() {
+    if (isProcessing) return;
     try {
         status.innerText = "Analyzing memory and saving profile...";
         const res = await fetch("/end-session", { method: "POST" });

@@ -1,5 +1,4 @@
-import os
-import tempfile
+import io
 from faster_whisper import WhisperModel
 
 # Model configuration: "base.en" is ~145MB, highly accurate and sub-second fast on CPU
@@ -20,28 +19,23 @@ def get_stt_model() -> WhisperModel:
 
 def transcribe_audio(audio_data: bytes | str) -> str:
     """
-    Transcribes audio bytes or an audio file path into text.
-    
+    Transcribes in-memory audio bytes or an audio file path into text.
+
     Args:
-        audio_data: Raw audio bytes or absolute file path (.wav, .webm, .mp3, etc.)
-        
+        audio_data: Raw audio bytes (WebM/Opus, WAV, MP3, etc.) or file path.
+
     Returns:
         Transcribed text string.
     """
+    if not audio_data:
+        return ""
+
     model = get_stt_model()
 
     if isinstance(audio_data, (bytes, bytearray)):
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp.write(audio_data)
-            tmp_path = tmp.name
-
-        try:
-            segments, info = model.transcribe(tmp_path, beam_size=5)
-            transcription = " ".join(seg.text for seg in segments).strip()
-            return transcription
-        finally:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-    else:
-        segments, info = model.transcribe(audio_data, beam_size=5)
+        audio_stream = io.BytesIO(audio_data)
+        segments, _ = model.transcribe(audio_stream, beam_size=5)
         return " ".join(seg.text for seg in segments).strip()
+
+    segments, _ = model.transcribe(audio_data, beam_size=5)
+    return " ".join(seg.text for seg in segments).strip()

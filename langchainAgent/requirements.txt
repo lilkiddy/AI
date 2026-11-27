@@ -1,12 +1,12 @@
 # Environment & Configuration
 python-dotenv>=1.0.0
+pydantic>=2.0.0
 
 # LangChain Core & Integrations
 langchain>=0.3.0
 langchain-core>=0.3.0
 langchain-community>=0.3.0
 langchain-google-genai>=2.0.0
-langchain-huggingface>=0.1.0
 
 # Google GenAI SDK
 google-genai>=0.1.0
@@ -22,6 +22,3 @@ av<18
 
 # Text-to-Speech (TTS)
 edge-tts>=6.1.0
-
-# Data manipulation & utilities
-pandas>=2.0.0
