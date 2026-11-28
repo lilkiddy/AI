@@ -4,6 +4,20 @@ Detailed engineering notes for major updates—explaining **what changed**, **wh
 
 ---
 
+## Upgrade: XENON 2-Screen UI, Multi-User Profile Switching & Stop Voice Control
+
+### 1. Multi-User Memory Profiles ([agent.py](file:///home/prvn/ai/experiments/AI/langchainAgent/agent.py) & [server.py](file:///home/prvn/ai/experiments/AI/langchainAgent/server.py))
+* Added `sanitize_user_id()` to normalize user-entered names into safe lowercase filenames.
+* Added `VoiceAgent.switch_user()` to load an existing `memory/<user_id>.json` or immediately create a new empty JSON file if none exists.
+* Added `GET /session-info` and `POST /select-user` in `server.py` (synchronized with `agent_lock`), saving any active conversation turns before switching users.
+
+### 2. XENON (`54 · Xe`) 2-Screen Pastel-Grey UI ([static/index.html](file:///home/prvn/ai/experiments/AI/langchainAgent/static/index.html), [static/styles.css](file:///home/prvn/ai/experiments/AI/langchainAgent/static/styles.css), [static/app.js](file:///home/prvn/ai/experiments/AI/langchainAgent/static/app.js), [static/bg.jpg](file:///home/prvn/ai/experiments/AI/langchainAgent/static/bg.jpg))
+* **2-Screen Flow:** Boots on Screen 1 (username prompt ➔ `POST /select-user`) and transitions into Screen 2 (Voice Workspace with active profile pill and `SWITCH` button).
+* **Pastel-Grey & Charcoal Design:** Rounded frosted pastel-grey card over a misty mountain backdrop (`static/bg.jpg`), sculpted 3D circular mic dial, and two-tone dialogue panels.
+* **Stop Voice Control:** Added `⏹ Stop Voice` (`stopTTS()`) inside the `OUTPUT // XENON` header so users can stop TTS playback anytime without starting a new recording.
+
+---
+
 ## Upgrade: Non-Blocking Async Gateway, In-Memory STT, Pydantic Memory & Mic Fixes
 
 ### 1. [agent.py](file:///home/prvn/ai/experiments/AI/langchainAgent/agent.py)

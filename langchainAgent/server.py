@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from stt_service import transcribe_audio
 from tts_service import synthesize_speech
-from agent import VoiceAgent
+from agent import VoiceAgent, load_user_facts, sanitize_user_id
 
 app = FastAPI(title="Voice Agent - End-to-End Gateway")
 
@@ -31,6 +31,42 @@ agent_lock = asyncio.Lock()
 async def serve_ui():
     """Serves the web interface for microphone audio capture and voice playback."""
     return FileResponse("static/index.html")
+
+
+@app.get("/session-info")
+async def session_info_endpoint():
+    """Returns the currently active user profile and loaded fact count."""
+    async with agent_lock:
+        facts = load_user_facts(agent.user_id)
+        return JSONResponse(content={
+            "user_id": agent.user_id,
+            "facts_count": len(facts),
+        })
+
+
+@app.post("/select-user")
+async def select_user_endpoint(body: dict):
+    """
+    Loads an existing user's memory JSON or creates a new one if absent.
+    Saves any active unsaved turns before switching users.
+    """
+    raw_user = (body.get("user_id") or "").strip()
+    if not raw_user:
+        return JSONResponse(status_code=400, content={"error": "Username cannot be empty"})
+
+    clean_id = sanitize_user_id(raw_user)
+
+    async with agent_lock:
+        if clean_id != agent.user_id and len(agent.messages) > 1:
+            await asyncio.to_thread(agent.end_session)
+
+        user_id, facts_count, is_new = await asyncio.to_thread(agent.switch_user, clean_id)
+
+    return JSONResponse(content={
+        "user_id": user_id,
+        "facts_count": facts_count,
+        "is_new_user": is_new,
+    })
 
 
 @app.post("/transcribe")

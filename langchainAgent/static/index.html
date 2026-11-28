@@ -3,30 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice AI Agent</title>
+    <title>XENON — Voice Intelligence</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-    <div class="card">
-        <h1>Voice AI Agent</h1>
-        <p class="subtitle">Microphone ➡️ Faster-Whisper ➡️ LangChain Agent ➡️ Edge-TTS</p>
+    <div class="bg-overlay"></div>
 
-        <button id="micBtn" class="mic-btn" onclick="toggleRecording()">🎙️</button>
-        <div id="status" class="status">Click microphone to speak</div>
-
-        <div class="dialogue-box">
-            <div class="result-box">
-                <div class="result-label">🗣️ You Said:</div>
-                <div id="userText" class="result-text">Waiting for your voice...</div>
+    <!-- SCREEN 1: Welcome / User Profile Entry -->
+    <div id="loginScreen" class="box-frame login-frame">
+        <div class="header">
+            <div class="element-tile">
+                <span class="atomic-num">54</span>
+                <span class="element-sym">Xe</span>
             </div>
-
-            <div class="result-box ai-box">
-                <div class="result-label">🤖 AI Agent Response:</div>
-                <div id="aiText" class="result-text">AI is ready.</div>
+            <div class="title-block">
+                <h1>XENON</h1>
+                <p class="subtitle">VOICE INTELLIGENCE</p>
             </div>
         </div>
 
-        <button class="btn-end" onclick="endSession()">💾 End Session & Save Memory</button>
+        <div class="divider"></div>
+
+        <div class="profile-panel">
+            <label for="userIdInput" class="input-label">USER PROFILE</label>
+            <input
+                type="text"
+                id="userIdInput"
+                class="profile-input"
+                placeholder="Enter username (e.g. praveen, gojo)"
+                autocomplete="off"
+                autofocus
+            />
+        </div>
+
+        <div id="loginStatus" class="status">READY TO INITIALIZE</div>
+        <button id="startSessionBtn" class="btn-box btn-primary" onclick="selectUser()">
+            INITIALIZE SESSION
+        </button>
+    </div>
+
+    <!-- SCREEN 2: Voice Agent Workspace -->
+    <div id="agentScreen" class="box-frame hidden">
+        <div class="top-bar">
+            <div class="brand-mini">
+                <span class="mini-sym">Xe</span>
+                <span class="mini-name">XENON</span>
+            </div>
+            <div class="top-actions">
+                <div id="profileBadge" class="profile-tag">praveen • 0 facts</div>
+                <button class="btn-box btn-ghost" onclick="switchUserScreen()">SWITCH</button>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="mic-section">
+            <div class="mic-tray">
+                <button id="micBtn" class="mic-btn" onclick="toggleRecording()">🎙️</button>
+            </div>
+            <div id="status" class="status">CLICK TO SPEAK</div>
+        </div>
+
+        <div class="dialogue-box">
+            <div class="result-box">
+                <div class="result-label">INPUT // USER</div>
+                <div id="userText" class="result-text">Waiting for voice input...</div>
+            </div>
+
+            <div class="result-box ai-box">
+                <div class="ai-header">
+                    <div class="result-label">OUTPUT // XENON</div>
+                    <button id="stopAudioBtn" class="btn-stop-audio hidden" onclick="stopTTS()">
+                        ⏹ Stop Voice
+                    </button>
+                </div>
+                <div id="aiText" class="result-text">System standing by.</div>
+            </div>
+        </div>
+
+        <button class="btn-box btn-end" onclick="endSession()">END SESSION &amp; SAVE MEMORY</button>
     </div>
 
     <script src="/static/app.js"></script>

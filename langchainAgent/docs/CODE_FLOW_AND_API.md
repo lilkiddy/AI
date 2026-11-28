@@ -143,8 +143,10 @@ sequenceDiagram
 
 | Function | Signature | Description |
 | :--- | :--- | :--- |
-| **`serve_ui`** | `GET /` ➡️ `FileResponse` | Serves `static/index.html`; Chrome then auto-loads `/static/styles.css` and `/static/app.js`. |
-| **`transcribe_and_respond`** | `POST /transcribe(file: UploadFile)` ➡️ `JSONResponse` | Receives `.wav` audio, transcribes via Faster-Whisper, queries `VoiceAgent`, logs to terminal, and returns results. |
+| **`serve_ui`** | `GET /` ➡️ `FileResponse` | Serves `static/index.html`; Chrome then auto-loads `/static/styles.css`, `/static/app.js`, and `/static/bg.jpg`. |
+| **`session_info_endpoint`** | `GET /session-info` ➡️ `JSONResponse` | Returns the active `user_id` and its saved persistent fact count. |
+| **`select_user_endpoint`** | `POST /select-user(body: dict)` ➡️ `JSONResponse` | Saves any active turns, then loads `memory/<user_id>.json` (or creates a new one if absent). |
+| **`transcribe_and_respond`** | `POST /transcribe(file: UploadFile)` ➡️ `JSONResponse` | Receives browser audio (`WebM/Opus`), transcribes in-memory via Faster-Whisper, queries `VoiceAgent`, and returns results. |
 | **`synthesize_endpoint`** | `POST /synthesize(body: dict)` ➡️ `Response (audio/mpeg)` | Receives JSON `{"text": "..."}`, converts to spoken MP3 audio via Edge-TTS, and returns raw MP3 bytes. |
 | **`end_session_endpoint`** | `POST /end-session` ➡️ `JSONResponse` | Triggers agent long-term memory extraction, persistence, compaction, and RAM reset. |
 
@@ -156,15 +158,23 @@ sequenceDiagram
 Stateful orchestrator managing conversation memory, persona, and Gemini LLM interactions.
 
 * **`__init__(user_id: str = "praveen")`**:
-  Initializes Gemini model (`gemini-3.5-flash-lite`), loads user credentials, and calls `reset_session()`.
+  Initializes Gemini model (`gemini-3.5-flash-lite`), sanitizes `user_id`, loads credentials, and calls `reset_session()`.
 * **`reset_session() -> None`**:
   Hydrates `self.system_msg` with persistent disk facts and initializes in-RAM history `self.messages = [self.system_msg]`.
+* **`switch_user(user_id: str) -> tuple[str, int, bool]`**:
+  Switches active user profile, creating an empty `memory/<user_id>.json` if missing, and returns `(user_id, facts_count, is_new_user)`.
+* **`_get_active_context() -> list`**:
+  Returns `[self.messages[0]] + self.messages[1:][-MAX_SHORT_TERM_TURNS:]` so the pinned `SystemMessage` is never duplicated.
 * **`chat(user_text: str) -> str`**:
-  Appends user message, enforces sliding window (`MAX_SHORT_TERM_TURNS = 20`), calls Gemini via `llm.invoke()`, appends assistant reply to RAM, and returns response string.
+  Appends user message, invokes Gemini with `_get_active_context()`, appends assistant reply to RAM, and returns the response string.
+* **`chat_stream(user_text: str)`**:
+  Generator used by CLI `main()` to stream tokens word-by-word via `llm.stream()` with rollback protection on failure.
 * **`end_session() -> None`**:
   Runs `update_memory_from_session()`, commits facts to disk, and prints memory status.
 
 #### Memory Helper Functions:
+* **`sanitize_user_id(user_id: str) -> str`**:
+  Normalizes a user-supplied name into a safe lowercase filename slug.
 * **`get_user_memory_path(user_id: str) -> Path`**:
   Resolves path `memory/<user_id>.json` and ensures parent directory exists.
 * **`load_user_facts(user_id: str) -> list[str]`**:
@@ -201,7 +211,7 @@ Stateful orchestrator managing conversation memory, persona, and Gemini LLM inte
 * **`get_stt_model() -> WhisperModel`**:
   Lazy-loads and caches the singleton `WhisperModel("base.en", device="cpu", compute_type="int8")`. Uses CTranslate2 INT8 quantization for sub-second CPU transcription with 50% lower RAM footprint.
 * **`transcribe_audio(audio_data: bytes | str) -> str`**:
-  Accepts raw audio bytes or a file path. Writes bytes to an isolated temporary `.wav` file, calls `model.transcribe()`, aggregates segments, safely removes the temporary file, and returns clean transcription text.
+  Accepts raw audio bytes (`WebM/Opus`, `WAV`, etc.) or a file path. Wraps bytes in an in-memory `io.BytesIO` stream, calls `model.transcribe()`, and returns clean transcription text without touching disk.
 
 ---
 
@@ -213,11 +223,43 @@ Stateful orchestrator managing conversation memory, persona, and Gemini LLM inte
 
 ---
 
-### 2. Transcribe & Chat
+### 2. Get Active Session Info
+* **Endpoint:** `GET /session-info`
+* **Response:** `200 OK` (`application/json`)
+  ```json
+  {
+    "user_id": "praveen",
+    "facts_count": 5
+  }
+  ```
+
+---
+
+### 3. Select / Create User Profile
+* **Endpoint:** `POST /select-user`
+* **Content-Type:** `application/json`
+* **Request Body:**
+  ```json
+  {
+    "user_id": "gojo"
+  }
+  ```
+* **Response:** `200 OK` (`application/json`)
+  ```json
+  {
+    "user_id": "gojo",
+    "facts_count": 0,
+    "is_new_user": true
+  }
+  ```
+
+---
+
+### 4. Transcribe & Chat
 * **Endpoint:** `POST /transcribe`
 * **Content-Type:** `multipart/form-data`
 * **Request Body:**
-  * `file`: Binary audio file (`.wav` / `audio/wav`)
+  * `file`: Binary audio file (`audio/webm` / `audio/wav`)
 * **Response:** `200 OK` (`application/json`)
   ```json
   {

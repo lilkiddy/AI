@@ -91,9 +91,10 @@ langchainAgent/
 ├── memory/
 │   └── praveen.json        # Single persistent user facts file (JSON array)
 ├── static/
-│   ├── index.html          # Web UI structure (links CSS and JS)
-│   ├── styles.css          # Dark-mode styling & mic button animations
-│   └── app.js              # Browser MediaRecorder, fetch(), & TTS playback
+│   ├── app.js              # Browser MediaRecorder, profile switching, fetch(), & TTS playback
+│   ├── bg.jpg              # Pastel mist-grey & charcoal landscape background
+│   ├── index.html          # 2-screen XENON Web UI (Profile Entry & Voice Workspace)
+│   └── styles.css          # Rounded pastel-grey & matte charcoal 3D styling
 ├── .dockerignore           # Excludes secrets, venv, and cache from images
 ├── .env.example            # Environment variable template
 ├── agent.py                # Core LangChain agent with Two-Tier memory engine

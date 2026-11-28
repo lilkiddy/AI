@@ -1,6 +1,6 @@
-# Voice AI Agent
+# XENON  — Voice AI Agent
 
-A containerized, end-to-end **Voice AI Agent** powered by **FastAPI**, **Faster-Whisper (STT)**, **LangChain + Gemini**, and a **Two-Tier Persistent Memory** engine.
+A containerized, end-to-end **Voice AI Agent** powered by **FastAPI**, **Faster-Whisper (STT)**, **LangChain + Gemini**, **Edge-TTS**, and a **Two-Tier Persistent Memory** engine.
 
 ---
 
@@ -22,6 +22,7 @@ Browser Mic (WebM/Opus) ──▶ FastAPI Gateway (server.py)
 ### Key Highlights
 - **Browser-Native Voice Input**: Uses Web Audio (`MediaRecorder`) in the browser—portable across Linux, macOS, Windows, and Docker without host audio passthrough.
 - **CPU-Optimized Speech-to-Text**: Runs `faster-whisper` (`base.en`, INT8 via CTranslate2) locally on CPU with sub-second transcription.
+- **Multi-User Memory Profiles**: Prompts for a username on launch and loads `memory/<user_id>.json` (or auto-creates a fresh profile).
 - **Two-Tier Memory Engine**: Combines an ephemeral in-RAM sliding window (`MAX_SHORT_TERM_TURNS = 20`) with deterministic JSON fact extraction and auto-compaction on disk (`memory/<user_id>.json`).
 - **Production-Hardened Docker**: Pre-caches the Whisper model at build time, runs as non-root `appuser` (UID 1000), and excludes secrets (`.env`) via `.dockerignore`.
 
@@ -40,9 +41,10 @@ langchainAgent/
 ├── memory/
 │   └── praveen.json                     # Persistent user facts & persona storage (JSON)
 ├── static/
-│   ├── index.html                       # Web UI structure (links CSS and JS)
-│   ├── styles.css                       # Dark-mode styling & mic button animations
-│   └── app.js                           # Browser MediaRecorder, fetch(), & TTS playback
+│   ├── app.js                           # Browser MediaRecorder, profile switching, fetch(), & TTS playback
+│   ├── bg.jpg                           # Pastel mist-grey & charcoal landscape background
+│   ├── index.html                       # 2-screen XENON Web UI (Profile Entry & Voice Workspace)
+│   └── styles.css                       # Rounded pastel-grey & matte charcoal 3D styling
 ├── .dockerignore                        # Prevents venv, cache, and secrets from entering image
 ├── .env.example                         # Template for API keys and configuration
 ├── agent.py                             # LangChain VoiceAgent core, CLI mode & Two-Tier memory

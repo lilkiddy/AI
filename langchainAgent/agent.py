@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from pathlib import Path
 from dotenv import load_dotenv
@@ -25,10 +26,16 @@ TARGET_COMPACT_FACTS = 15     # ...consolidate down to this number
 # =====================================================================
 # LONG-TERM MEMORY ENGINE (Native JSON Array Storage)
 # =====================================================================
+def sanitize_user_id(user_id: str) -> str:
+    """Normalizes a user-supplied name into a safe filename-friendly user_id."""
+    cleaned = re.sub(r"[^a-z0-9_-]", "", user_id.strip().lower().replace(" ", "_"))
+    return cleaned or "default_user"
+
+
 def get_user_memory_path(user_id: str) -> Path:
     """Returns path to the user's JSON memory file."""
     MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-    return MEMORY_DIR / f"{user_id}.json"
+    return MEMORY_DIR / f"{sanitize_user_id(user_id)}.json"
 
 
 def load_user_facts(user_id: str) -> list[str]:
@@ -183,7 +190,7 @@ class VoiceAgent:
     """Manages conversational session state, memory, and LLM reasoning."""
 
     def __init__(self, user_id: str = "praveen"):
-        self.user_id = user_id
+        self.user_id = sanitize_user_id(user_id)
         load_dotenv(override=True)
         google_api_key = os.getenv("GOOGLE_API_KEY")
 
@@ -200,6 +207,26 @@ class VoiceAgent:
         """Initializes or resets ephemeral in-RAM memory."""
         self.system_msg = build_system_message(self.user_id)
         self.messages = [self.system_msg]
+
+    def switch_user(self, user_id: str) -> tuple[str, int, bool]:
+        """
+        Switches active user profile, creating memory/<user_id>.json if missing.
+
+        Returns:
+            (clean_user_id, facts_count, is_new_user)
+        """
+        clean_id = sanitize_user_id(user_id)
+        mem_path = get_user_memory_path(clean_id)
+        is_new_user = not mem_path.exists()
+
+        if is_new_user:
+            save_user_facts(clean_id, [])
+            print(f"✨ Created new memory profile: {mem_path}")
+
+        self.user_id = clean_id
+        self.reset_session()
+        facts_count = len(load_user_facts(clean_id))
+        return clean_id, facts_count, is_new_user
 
     def _get_active_context(self) -> list:
         """Returns pinned SystemMessage plus the rolling short-term conversation window."""
